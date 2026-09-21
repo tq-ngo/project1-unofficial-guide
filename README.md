@@ -1,6 +1,6 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
+**Quang Ngo - `campus_life` corpus**
 
 > **This file is your submission.** Fill it in as you go — most sections get
 > written during the milestone that produces them, not at the end.
@@ -27,10 +27,12 @@
 
      Milestone 5. -->
 
+A RAG system built on the `campus_life` corpus - 88 short posts covering housing, dining, course reviews, administrative deadlines, and campus services at a university. Ask a question in English and the system finds relevant passages, checks whether they're close enough to actually answer from, and then sends them to Gemini with strict grounding instructions so the answer cites its source document. If nothing in the corpus is relevant, the system refuses rather than guessing. It handles questions like "When is the add/drop deadline?" or "What food does Verrill Street Grill serve?" - practical campus logistics where the answer lives in one or two specific documents.
+
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 350-400 characters
+**Overlap:** 60-80 characters
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
@@ -53,29 +55,52 @@
 
      Milestone 3. -->
 
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt` — produced by: `chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_biol_160_workload.txt` — produced by: `chunker.py::split_documents`
 
 ```
+Workload for BIOL 160 Cell Biology
+
+People keep asking so: 9 to 11 hours a week, the heaviest first-year course by reputation. That's real time, not optimistic time.
+
+It's front-loaded — the first month is heavier than the rest, partly because you're learning the format.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_math_220_exams.txt` — produced by: `chunker.py::split_documents`
 
 ```
+MATH 220 Linear Algebra — assessment
+
+Two midterms and a cumulative final. Curved to a b- median.
+
+The problem sets are the course; the lectures make sense afterwards rather than during.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_the_ridgeway_cafe.txt` — produced by: `chunker.py::split_documents`
 
 ```
+The Ridgeway Café
+
+Second-year here. Wait times: 10 to 15 minutes at 12:30, none after 2:00. The thing worth going for is the onlyplace on campus with real espresso. The thing to know is that seating is tight; about 40 seats for a building of 900.
+
+Hours are 7:00am to 4:00pm weekdays only. Costs declining balance only, no meal swipes.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_innisfree_hall_noise.txt` — produced by: `chunker.py::split_documents`
 
 ```
+Noise levels in Innisfree Hall
+
+Asked about this a lot so writing it down. Moderate; the building is l-shaped and the short wing is much quieter.
+
+If you're someone who needs quiet to work, the library is open until 2am during term and that's what most people in this building end up doing.
 ```
 
 ## Sample Answer
@@ -83,14 +108,17 @@
 <!-- One complete question and answer, pasted as text, with the source line
      visible. Milestone 4. -->
 
-**Question:**
+**Question:** When is the deadline to add or drop a course without a W on your transcript?
 
 **Answer:**
 
 ```
+The deadline to add a course is the end of the second week, which is also the deadline to drop a course without receiving a W on your transcript (since a drop after week two shows as a W).
+
+Source: admin_add_drop_deadline.txt
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** `0.58`
 
 <!-- The number you set in config.py, and how you got there.
 
@@ -101,24 +129,26 @@
 
      Milestone 4. -->
 
-| Question | In corpus? | Best distance |
-|---|---|---|
-|  |  |  |
+The in-corpus group topped out at 0.4798 and the out-of-scope group bottomed out at 0.8246, a gap of about 0.34. I set the cutoff at 0.58, which is in the middle of that gap. This means the system won't refuse any of the five test questions and will refuse all five out-of-scope questions.
+
+| Question                                                                     | In corpus? | Best distance |
+| ---------------------------------------------------------------------------- | ---------- | ------------- |
+| When is the deadline to add or drop a course without a W on your transcript? | Yes        | 0.1550        |
+| What are the closing hours for the main library on weekend nights?           | Yes        | 0.3627        |
+| How much printing credit do undergraduate students receive each semester?    | Yes        | 0.4029        |
+| What type of food is served at Verrill Street Grill?                         | Yes        | 0.4096        |
+| Does the student health center require an appointment for urgent care?       | Yes        | 0.4798        |
+| What is the capital of Mongolia?                                             | No         | 0.8246        |
+| What is the recommended dosage of ibuprofen for a headache?                  | No         | 0.8442        |
+| Who won the 1994 World Cup?                                                  | No         | 0.8859        |
+| How do I write a for loop in Rust?                                           | No         | 0.8960        |
+| How do I change the oil in a diesel engine?                                  | No         | 0.9340        |
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**1.** I asked Claude to write a chunker that wouldn't cut mid-sentence, given my notes about campus_life documents being short posts (200–500 characters each) where each post is usually one complete thought. Claude returned a function that split on sentence endings and grouped sentences into chunks, but it didn't handle overlap: it just moved to the next batch of sentences with no shared context between neighboring chunks. I added the overlap logic myself by walking backwards through the current sentences to carry the last ~70 characters of context into the next chunk, and added the MIN_CHUNK_SIZE that merges tiny trailing fragments back into the previous chunk.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2.** I asked Claude to help me write the 2 custom acceptance criteria in `criteria.md`. It suggested a criterion about "answer accuracy" measured by exact-match against expected keywords, which wouldn't work because the model paraphrases freely. I rewrote criterion 4 to be about chunk sizing and criterion 5 to be about answer conciseness, which I chose because the campus_life documents are short factual posts and long answers would signal the model is hallucinating.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
@@ -145,13 +175,13 @@
 
      Milestone 1. -->
 
-| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
-|---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
+| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
+| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
+| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
+| 4.                                     |        |       |       |       |         |
+| 5.                                     |        |       |       |       |         |
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
@@ -168,13 +198,13 @@
 
      Milestone 2. -->
 
-| # | Criterion | Verdict | How I decided |
-|---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| #   | Criterion | Verdict | How I decided |
+| --- | --------- | ------- | ------------- |
+| 1   |           |         |               |
+| 2   |           |         |               |
+| 3   |           |         |               |
+| 4   |           |         |               |
+| 5   |           |         |               |
 
 ## Diagnoses
 
@@ -210,13 +240,13 @@
 <!-- Same format, same five criteria, three runs each.
      `python run_eval.py --label after` -->
 
-| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
-|---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
+| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
+| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
+| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
+| 4.                                     |        |       |       |       |         |
+| 5.                                     |        |       |       |       |         |
 
 **Did it help?**
 

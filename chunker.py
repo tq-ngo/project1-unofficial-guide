@@ -23,6 +23,7 @@ your pipeline, not giving up.
 """
 
 from dataclasses import dataclass
+import re
 
 import config
 from ingest import Document
@@ -79,6 +80,69 @@ def fallback_split(
 
     return chunks
 
+def _split_into_sentences(text: str) -> list[str]:
+    """Split raw text into clean, standalone sentences preserving terminal punctuation."""
+    raw_sentences = re.split(r"(?<=[.!?])\s+|\n{2,}", text.strip())
+    sentences = [s.strip() for s in raw_sentences if s.strip()]
+    return sentences if sentences else [text.strip()]
+
+
+def _chunk_text_semantically(
+    text: str,
+    chunk_size: int,
+    overlap_size: int,
+    min_chunk_size: int,
+) -> list[str]:
+    """
+    Group sentences into self-contained semantic units based on chunk size and overlap.
+
+    Ensures no mid-sentence cuts and eliminates tiny trailing fragments.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+
+    if len(cleaned) <= chunk_size + 40:
+        return [cleaned]
+
+    sentences = _split_into_sentences(cleaned)
+    chunks: list[str] = []
+    current_sentences: list[str] = []
+    current_len = 0
+
+    for sentence in sentences:
+        sentence_len = len(sentence)
+
+        if current_sentences and (current_len + 1 + sentence_len > chunk_size):
+            chunk_str = " ".join(current_sentences).strip()
+            chunks.append(chunk_str)
+
+            overlap_sentences: list[str] = []
+            acc_overlap = 0
+            for s in reversed(current_sentences):
+                if acc_overlap + len(s) <= overlap_size or not overlap_sentences:
+                    overlap_sentences.insert(0, s)
+                    acc_overlap += len(s) + 1
+                else:
+                    break
+
+            current_sentences = list(overlap_sentences)
+            current_len = sum(len(s) for s in current_sentences) + max(
+                0, len(current_sentences) - 1
+            )
+
+        current_sentences.append(sentence)
+        current_len += sentence_len + (1 if len(current_sentences) > 1 else 0)
+
+    if current_sentences:
+        final_chunk = " ".join(current_sentences).strip()
+        if chunks and len(final_chunk) < min_chunk_size:
+            chunks[-1] = (chunks[-1] + " " + final_chunk).strip()
+        else:
+            chunks.append(final_chunk)
+
+    return chunks
+
 
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
@@ -97,7 +161,31 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
       - Would splitting on paragraph breaks keep more thoughts intact than
         splitting on a character count?
     """
-    return fallback_split(documents)
+    chunks: list[Chunk] = []
+    chunk_size = config.CHUNK_SIZE
+    overlap_size = config.CHUNK_OVERLAP
+    min_chunk_size = config.MIN_CHUNK_SIZE
+
+
+    for doc in documents:
+        text_slices = _chunk_text_semantically(
+            text=doc.text,
+            chunk_size=chunk_size,
+            overlap_size=overlap_size,
+            min_chunk_size=min_chunk_size,
+        )
+
+        for index, slice_text in enumerate(text_slices):
+            chunks.append(
+                Chunk(
+                    text=slice_text,
+                    source=doc.source,
+                    index=index,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

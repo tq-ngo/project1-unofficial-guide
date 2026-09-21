@@ -26,6 +26,8 @@ contains the answer.
 <!-- e.g. "One of my questions is about a topic only two documents mention, so
      I expect that one to be hard." -->
 
+A 4 out of 5 target accommodates edgecases where phrasing differences or sparse document coverage might challenge semantic search, while a 5/5 could force over-tuning before pipeline parameters are stabilized. Anything looser would mean a low retrieval failure rate, which is not reliable to support downstream generation.
+
 ---
 
 ## 2. Every answer names a source
@@ -35,6 +37,8 @@ Every answer the system produces names at least one source document.
 **Why this target:**
 <!-- Why all five and not four? What about your setup makes that achievable —
      or what would have to go wrong for it not to be? -->
+
+Source is essential for trust in an unofficial campus guide. Allowing unreferenced responses would let hallucinated claims pass undetected without a clear paper trail back to the corpus.
 
 ---
 
@@ -53,9 +57,11 @@ in at least 4 of 5 tries.
 <!-- What did your distances look like when you set the cutoff in Milestone 4?
      Was there a clean gap, or did the two groups overlap? -->
 
+Requiring 4 of 5 stops out-of-domain queries from producing hallucinations, while leaving slight tolerance for prompts that overlap with common campus vocabulary. A loose 3 of 5 would fail almost half the time, whereas demanding 5 of 5 might require setting similarity cutoffs so strict that valid queries get rejected.
+
 ---
 
-## 4. Something about your chunks
+## 4. Chunk Sizing
 
 <!-- YOU WRITE THIS ONE.
 
@@ -69,15 +75,16 @@ in at least 4 of 5 tries.
        - "No chunk is shorter than 200 characters, since anything below that
           in my corpus turned out to be a heading with no content under it." -->
 
-
+At least 95% of chunks in the index are between 100 and 350 words. No chunk is under 20 words after stripping markdown headers, since a chunk that
+short is a heading or fragment with no content of its own.
 
 **Why this target:**
 
-
+Chunks under 100 words lose the context needed to make sense on their own, while chunks above 350 words mix subtopics and dilute the embedding, which hurts retrieval precision.
 
 ---
 
-## 5. Your choice
+## 5. Answer Conciseness
 
 <!-- YOU WRITE THIS ONE TOO.
 
@@ -87,11 +94,11 @@ in at least 4 of 5 tries.
      present — anything, as long as it names a number or an observable
      outcome. -->
 
-
+For all 5 test questions, the generated response contains fewer than 80 words and includes zero factual assertions that cannot be directly mapped to the retrieved context chunks.
 
 **Why this target:**
 
-
+Students need direct answers rather than verbose summaries, so an 80-word ceiling keeps generation focused and low-latency. Mandating zero unsubstantiated assertions guarantees that when the model speaks, it strictly adheres to verified source material without inventing deadlines or policies.
 
 ---
 
