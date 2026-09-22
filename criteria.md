@@ -4,13 +4,13 @@ Five criteria that say what "working" means for this system, written in unit 1
 **before** any results existed.
 
 An acceptance criterion names a target: a number, a count, a rate, or something
-a person could plainly observe. *"Retrieval works"* is an opinion. *"For at
+a person could plainly observe. _"Retrieval works"_ is an opinion. _"For at
 least 4 of my 5 test questions, the top results include a chunk containing the
-answer"* is a criterion.
+answer"_ is a criterion.
 
 Under each one, write a sentence or two on **why that target** and not a
 stricter or looser one. A reason that says something about your corpus or your
-pipeline earns credit; *"80% seemed reasonable"* does not.
+pipeline earns credit; _"80% seemed reasonable"_ does not.
 
 > Missing your own targets next unit costs you nothing. Setting a target so
 > easy you can't miss it does.
@@ -23,10 +23,11 @@ For at least 4 of my 5 test questions, the retrieved chunks include one that
 contains the answer.
 
 **Why this target:**
+
 <!-- e.g. "One of my questions is about a topic only two documents mention, so
      I expect that one to be hard." -->
 
-A 4 out of 5 target accommodates edgecases where phrasing differences or sparse document coverage might challenge semantic search, while a 5/5 could force over-tuning before pipeline parameters are stabilized. Anything looser would mean a low retrieval failure rate, which is not reliable to support downstream generation.
+4 of 5 rather than 5 of 5 because my health-center question ("Does the student health center require an appointment for urgent care?") retrieves at a best distance of 0.4798, which is close to the gate cutoff, since only one document (`health_center.txt`) covers that topic, and the phrasing "urgent care" doesn't appear in the text. That one is the likeliest miss. The other four questions each have a dedicated document whose title nearly matches the query, so 4 of 5 is realistic without being trivially easy.
 
 ---
 
@@ -35,10 +36,11 @@ A 4 out of 5 target accommodates edgecases where phrasing differences or sparse 
 Every answer the system produces names at least one source document.
 
 **Why this target:**
+
 <!-- Why all five and not four? What about your setup makes that achievable —
      or what would have to go wrong for it not to be? -->
 
-Source is essential for trust in an unofficial campus guide. Allowing unreferenced responses would let hallucinated claims pass undetected without a clear paper trail back to the corpus.
+All five rather than four because `build_prompt` in `generate.py` tags every chunk with `[from filename.txt]` and the `GROUNDING_INSTRUCTION` explicitly tells the model to "name the document your answer came from." The only way an answer could miss a source is if the model ignores the system instruction entirely, which would be a generation-stage bug worth catching at 5/5 rather than allowing silently at 4/5.
 
 ---
 
@@ -54,10 +56,11 @@ in at least 4 of 5 tries.
      just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
 
 **Why this target:**
+
 <!-- What did your distances look like when you set the cutoff in Milestone 4?
      Was there a clean gap, or did the two groups overlap? -->
 
-Requiring 4 of 5 stops out-of-domain queries from producing hallucinations, while leaving slight tolerance for prompts that overlap with common campus vocabulary. A loose 3 of 5 would fail almost half the time, whereas demanding 5 of 5 might require setting similarity cutoffs so strict that valid queries get rejected.
+My in-corpus distances top out at 0.4798 and my out-of-scope distances start at 0.8246, giving a clean gap of 0.34 with the cutoff at 0.58. Because the gap is wide, all five out-of-scope questions should be refused, so 4 of 5 is conservative. I kept it at 4 rather than 5 in case a future out-of-scope question happens to share vocabulary with campus documents (e.g., "ibuprofen" is the closest at 0.8442, still well above 0.58, but a medical question phrased around "student health" could land closer).
 
 ---
 
@@ -75,12 +78,11 @@ Requiring 4 of 5 stops out-of-domain queries from producing hallucinations, whil
        - "No chunk is shorter than 200 characters, since anything below that
           in my corpus turned out to be a heading with no content under it." -->
 
-At least 95% of chunks in the index are between 100 and 350 words. No chunk is under 20 words after stripping markdown headers, since a chunk that
-short is a heading or fragment with no content of its own.
+At least 95% of chunks in the index are between 80 and 420 characters long. No chunk is shorter than 80 characters, since anything below that in the `campus_life` corpus turned out to be a title line or leftover fragment with no answerable content.
 
 **Why this target:**
 
-Chunks under 100 words lose the context needed to make sense on their own, while chunks above 350 words mix subtopics and dilute the embedding, which hurts retrieval precision.
+The `campus_life` documents average about 300 characters each — short, self-contained posts. My `config.py` sets `CHUNK_SIZE = 380` and `MIN_CHUNK_SIZE = 80`, so the chunker targets that range in character counts. The 80-character floor matches `MIN_CHUNK_SIZE` and catches fragments like bare headings ("Noise levels in Innisfree Hall" is 31 characters) that would produce meaningless embeddings. The 420-character ceiling (chunk_size + a small margin for the overlap merge) ensures no chunk grows so large that it mixes two separate topics — which matters because most campus_life posts cover exactly one topic each.
 
 ---
 
@@ -94,11 +96,11 @@ Chunks under 100 words lose the context needed to make sense on their own, while
      present — anything, as long as it names a number or an observable
      outcome. -->
 
-For all 5 test questions, the generated response contains fewer than 80 words and includes zero factual assertions that cannot be directly mapped to the retrieved context chunks.
+For all 5 test questions, the generated response is no longer than 60 words and names at least one specific detail (a number, a date, or a name) that appears verbatim in one of the retrieved chunks.
 
 **Why this target:**
 
-Students need direct answers rather than verbose summaries, so an 80-word ceiling keeps generation focused and low-latency. Mandating zero unsubstantiated assertions guarantees that when the model speaks, it strictly adheres to verified source material without inventing deadlines or policies.
+The `campus_life` posts are short factual blurbs — most answers live in a single sentence containing a concrete detail ("end of the second week," "$30 of printing," "8am to 11am"). A 60-word cap is checkable by running `len(answer.split())` and ensures the model stays brief rather than padding with its own knowledge. Requiring a verbatim detail from the chunks is checkable by string search (`detail in chunk.text`) and catches answers where the model paraphrases so loosely that it invents a different number or date.
 
 ---
 

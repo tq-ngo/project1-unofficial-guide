@@ -31,8 +31,9 @@ A RAG system built on the `campus_life` corpus - 88 short posts covering housing
 
 ## Chunking Strategy
 
-**Chunk size:** 350-400 characters
-**Overlap:** 60-80 characters
+**Chunk size:** 380 characters &nbsp;|&nbsp; **Overlap:** 70 characters &nbsp;|&nbsp; **Minimum chunk:** 80 characters
+
+The `campus_life` documents are short, self-contained posts averaging about 300 characters each — most are a title line followed by two or three sentences covering a single topic (one dining hall, one admin deadline, one housing review). The starter's 800-character window never split anything because almost no post is that long, which means each post was already one chunk. After reading the documents, I chose 380 characters because it keeps most posts as a single chunk (they're already below 380) while splitting the handful of longer ones (like `housing_old_brewhouse.txt` at 554 characters or `housing_innisfree_hall.txt` at 519 characters) into pieces that still contain complete sentences. The sentence-boundary splitter avoids mid-sentence cuts, and the 70-character overlap carries about one sentence of context into the next chunk so no thought is orphaned at a boundary. The 80-character minimum merges tiny trailing fragments back into the previous chunk — anything under 80 characters in this corpus was just a heading with no content worth embedding on its own.
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
